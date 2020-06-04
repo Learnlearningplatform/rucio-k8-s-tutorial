@@ -1,176 +1,89 @@
-# Rucio Kubernetes Tutorial
+# Setting up a Rucio Kubernetes environment
 
-## Preliminaries
+## Prerequisites
 
-* Clone this repo to your local machine
+First, we have to clone this repo to our Local development environment. 
 
-* Install kubectl
+```
+git clone https://github.com/tbeerman/rucio-k8s-tutorial.git
+```
+- After cloning now we will install `kubectl` which is a command line toll for controlling `Kubernetes` clusters. `kubectl` looks for a file names config in the `$HOME/...` For details about each command, including all the sopported falgs and subcommands, see the `kubectl` [reference documentation](https://kubernetes.io/docs/tasks/tools/install-kubectl/). To install `kubectl` visit on the [following link](https://kubernetes.io/docs/tasks/tools/install-kubectl/):
 
-      https://kubernetes.io/docs/tasks/tools/install-kubectl/
+```
+https://kubernetes.io/docs/tasks/tools/install-kubectl/
+```
 
-* Install helm
+- Now we need of `helm` package manager for `Kubernetes`. `Helm` is a tool that streamlines installing and managing Kubernetes applications. We can think of it like Apt/Yum/Homebrew for `K8S`. `Helm` uses a packaging format called charts which is a collection of files that describe a related set of Kubernetes resources. To install `helm` use the [following link](https://helm.sh/docs/intro/install/)
 
-      https://helm.sh/docs/intro/install/
+```
+https://helm.sh/docs/intro/install/
+```
 
-* Install minikube
+- Now, we will install `minikube` which is tool that will make us easy to run Kubernetes locally. `Minikube` will run a single-node cluster inside our provided Hypervisor on our laptop. There are different packages to install `minikube`. You can install according to your preference. To install `minikube` follow the [given link](https://kubernetes.io/docs/tasks/tools/install-minikube/):
 
-      https://kubernetes.io/docs/tasks/tools/install-minikube/
-	  https://minikube.sigs.k8s.io/docs/start/
+```
+https://kubernetes.io/docs/tasks/tools/install-minikube/
 
-* Start minikube with extra RAM:
+https://minikube.sigs.k8s.io/docs/start/
+```
+After installing `minikube` just confirm the installation`. To confirm successful installation of both a `hypervisor` and `minikube`, you can run the following command to start up a local cluster:
 
-      minikube start --memory='4000mb'
+!!! Note
+       For setting the `--driver` with `minikube start`, enter the name of `hypervisor` you instaled in lowercase letters where `<driver_name>` is mentioned below. A full list of `--driver` values is available in [specifying the driver documentation](https://kubernetes.io/docs/setup/learning-environment/minikube/#specifying-the-vm-driver).
 
-* Add Helm chart repositories:
+```
+minikube start --driver=<driver_name>
+```
 
-      helm repo add stable https://kubernetes-charts.storage.googleapis.com/
-      helm repo add rucio https://rucio.github.io/helm-charts
+Once `minikube start` finishes, run the command below to check the status of the cluster:
 
-## Some helpful commands
+```
+minikube status
+```
 
-* Activate kubectl bash completion:
+If your cluster is running, the output from `minikube status` should be similar to:
 
-      source <(kubectl completion bash)
+```
+host: Running
+kubelet: Running
+apiserver: Running
+kubeconfig: Configured
+```
 
-* View all containers:
+After you have confirmed whether whether `Minikube` is working with your chosen `hypervisor` , you can continue to use `Minikube` or you can stop your cluster. To stop your cluster, run:
 
-      kubectl get pods
+```
+minikube stop
+```
 
-* View/Tail logfiles of pod:
+- Start minikube with extra RAM to avoid insufficient memory issue:
 
-      kubectl logs <NAME>
+```
+minikube start --memory='4000mb'
+```
 
-      kubectl logs -f <NAME>
+- As in the previous steps we had installed `Helm`. Now we will add `Helm chart` repository that houses an index. yaml file and optionally some packaged charts. Follow the given command:
 
-* Update helm repositories:
+```
+$ helm repo add stable https://kubernetes-charts.storage.googleapis.com/
 
-      helm repo update
+$ helm repo add rucio https://rucio.github.io/helm-charts
+```
 
-* Shut down minikube:
+Once this is installed, you will be able to list the charts you can install:
 
-      minikube stop
+```
+helm search repo stable
+NAME                                    CHART VERSION   APP VERSION                     DESCRIPTION
+stable/acs-engine-autoscaler            2.2.2           2.1.1                           DEPRECATED Scales worker nodes within agent pools
+stable/aerospike                        0.2.8           v4.5.0.5                        A Helm chart for Aerospike in Kubernetes
+stable/airflow                          4.1.0           1.10.4                          Airflow is a platform to programmatically autho...
+stable/ambassador                       4.1.0           0.81.0                          A Helm chart for Datawire Ambassador
+# ... and many more
+```
 
-## Installation of Rucio + FTS + Storage
 
-* Install the main Rucio database (PostgreSQL):
 
-      helm install postgres stable/postgresql -f postgres_values.yaml
 
-* Run init container once to setup the Rucio database once the PostgreSQL container is running:
 
-      kubectl apply -f init-pod.yaml
 
-* Install the Rucio server:
-
-      helm install server rucio/rucio-server -f server.yaml
-
-* Prepare a client container for interactive use:
-
-      kubectl apply -f client.yaml
-
-* Jump into the client container and check if the clients are working:
-
-      kubectl exec -it client /bin/bash
-
-      rucio whoami
-
-* Install the XRootD storage systems:
-
-      kubectl apply -f xrd.yaml
-
-* Install the FTS database (MySQL):
-
-      kubectl apply -f ftsdb.yaml
-
-* Install FTS, once the FTS database container is up and running:
-
-      kubectl apply -f fts.yaml
-
-* Install the Rucio daemons:
-
-      helm install daemons rucio/rucio-daemons -f daemons.yaml
-
-* Run FTS storage authentication delegation once:
-
-      kubectl create job renew-manual-1 --from=cronjob/daemons-renew-fts-proxy
-
-## Rucio usage
-
-* Jump into the client container
-
-      kubectl exec -it client /bin/bash
-
-* Create the RSEs
-
-      rucio-admin rse add XRD1
-      rucio-admin rse add XRD2
-      rucio-admin rse add XRD3
-
-* Add the protocol definitions for the storage servers
-
-      rucio-admin rse add-protocol --hostname xrd1 --scheme root --prefix //rucio --port 1094 --impl rucio.rse.protocols.gfal.Default --domain-json '{"wan": {"read": 1, "write": 1, "delete": 1, "third_party_copy": 1}, "lan": {"read": 1, "write": 1, "delete": 1}}' XRD1
-      rucio-admin rse add-protocol --hostname xrd2 --scheme root --prefix //rucio --port 1094 --impl rucio.rse.protocols.gfal.Default --domain-json '{"wan": {"read": 1, "write": 1, "delete": 1, "third_party_copy": 1}, "lan": {"read": 1, "write": 1, "delete": 1}}' XRD2
-      rucio-admin rse add-protocol --hostname xrd3 --scheme root --prefix //rucio --port 1094 --impl rucio.rse.protocols.gfal.Default --domain-json '{"wan": {"read": 1, "write": 1, "delete": 1, "third_party_copy": 1}, "lan": {"read": 1, "write": 1, "delete": 1}}' XRD3
-
-* Enable FTS
-
-      rucio-admin rse set-attribute --rse XRD1 --key fts --value https://fts:8446
-      rucio-admin rse set-attribute --rse XRD2 --key fts --value https://fts:8446
-      rucio-admin rse set-attribute --rse XRD3 --key fts --value https://fts:8446
-
-* Fake a full mesh network
-
-      rucio-admin rse add-distance --distance 1 --ranking 1 XRD1 XRD2
-      rucio-admin rse add-distance --distance 1 --ranking 1 XRD1 XRD3
-      rucio-admin rse add-distance --distance 1 --ranking 1 XRD2 XRD1
-      rucio-admin rse add-distance --distance 1 --ranking 1 XRD2 XRD3
-      rucio-admin rse add-distance --distance 1 --ranking 1 XRD3 XRD1
-      rucio-admin rse add-distance --distance 1 --ranking 1 XRD3 XRD2
-
-* Indefinite storage quota for root
-
-      rucio-admin account set-limits root XRD1 -1
-      rucio-admin account set-limits root XRD2 -1
-      rucio-admin account set-limits root XRD3 -1
-
-* Create a default scope for testing
-
-      rucio-admin scope add --account root --scope test
-
-* Create initial transfer testing data
-
-      dd if=/dev/urandom of=file1 bs=10M count=1
-      dd if=/dev/urandom of=file2 bs=10M count=1
-      dd if=/dev/urandom of=file3 bs=10M count=1
-      dd if=/dev/urandom of=file4 bs=10M count=1
-
-* Upload the files
-
-      rucio upload --rse XRD1 --scope test file1
-      rucio upload --rse XRD1 --scope test file2
-      rucio upload --rse XRD2 --scope test file3
-      rucio upload --rse XRD2 --scope test file4
-
-* Create a few datasets and containers
-
-      rucio add-dataset test:dataset1
-      rucio attach test:dataset1 test:file1 test:file2
-
-      rucio add-dataset test:dataset2
-      rucio attach test:dataset2 test:file3 test:file4
-
-      rucio add-container test:container
-      rucio attach test:container test:dataset1 test:dataset2
-
-* Create a rule and remember returned rule ID
-
-      rucio add-rule test:container 1 XRD3
-
-* Query the status of the rule
-
-      rucio rule-info <rule_id>
-
-* Add some more complications
-
-      rucio add-dataset test:dataset3
-      rucio attach test:dataset3 test:file4
